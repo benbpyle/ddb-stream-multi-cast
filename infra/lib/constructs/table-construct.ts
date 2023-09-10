@@ -19,6 +19,7 @@ export default class TableConstruct extends Construct {
             billingMode: BillingMode.PAY_PER_REQUEST,
             removalPolicy: RemovalPolicy.DESTROY,
             partitionKey: { name: "id", type: AttributeType.STRING },
+            sortKey: { name: "sk", type: AttributeType.STRING },
             tableName: `Patients`,
             encryption: TableEncryption.CUSTOMER_MANAGED,
             encryptionKey: props.key,

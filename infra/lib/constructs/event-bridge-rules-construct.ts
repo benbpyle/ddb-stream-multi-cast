@@ -1,21 +1,41 @@
-import { Rule } from "aws-cdk-lib/aws-events";
+import { EventBus, Rule } from "aws-cdk-lib/aws-events";
 import { Queue } from "aws-cdk-lib/aws-sqs";
 import { Construct } from "constructs";
 import * as targets from "aws-cdk-lib/aws-events-targets";
 import { IFunction } from "aws-cdk-lib/aws-lambda";
 import { EventBridgeRulesProps } from "../types/rule-props";
+import { Stack } from "aws-cdk-lib";
 
-export class EventBridgesRule extends Construct {
+export class EventBridgeRulesConstruct extends Construct {
     constructor(scope: Construct, id: string, props: EventBridgeRulesProps) {
         super(scope, id);
-        this.buildItemOneRule(scope, props.itemOneHandler);
+        const accountId = Stack.of(this).account;
+        const region = Stack.of(this).region;
+        const defaultBus = `arn:aws:events:${region}:${accountId}:event-bus/default`;
+
+        this.buildItemOneRule(scope, props.itemOneHandler, defaultBus);
+        this.buildItemTwoRule(scope, props.itemTwoHandler, defaultBus);
     }
 
-    private buildItemOneRule = (scope: Construct, handler: IFunction) => {
+    private buildItemOneRule = (
+        scope: Construct,
+        handler: IFunction,
+        busArn: string
+    ) => {
         const rule = new Rule(scope, "ItemOnHandlerRule", {
             eventPattern: {
-                detailType: ["ItemOneUpdated", "ItemOneCreated"],
+                detailType: ["PatientChange"],
+                detail: {
+                    meta: {
+                        changeType: ["PatientModify", "PatientInsert"],
+                    },
+                },
             },
+            eventBus: EventBus.fromEventBusArn(
+                scope,
+                "DefaultBusItemOne",
+                busArn
+            ),
             ruleName: "item-one-rule",
         });
 
@@ -27,30 +47,33 @@ export class EventBridgesRule extends Construct {
         );
     };
 
-    // private buildBusTwoRule = (
-    //     scope: Construct,
-    //     props: EventBridgeRuleStackProps
-    // ) => {
-    //     const rule = new Rule(this, "SampleEventSM-Rule", {
-    //         eventPattern: {
-    //             detailType: ["Busing"],
-    //         },
-    //         ruleName: "bus-two-busing",
-    //         eventBus: props.busTwo,
-    //     });
+    private buildItemTwoRule = (
+        scope: Construct,
+        handler: IFunction,
+        busArn: string
+    ) => {
+        const rule = new Rule(scope, "ItemTwoHandlerRule", {
+            eventPattern: {
+                detailType: ["PatientChange"],
+                detail: {
+                    meta: {
+                        changeType: ["AddressModify", "AddressInsert"],
+                    },
+                },
+            },
+            eventBus: EventBus.fromEventBusArn(
+                scope,
+                "DefaultBusItemTwo",
+                busArn
+            ),
+            ruleName: "item-two-rule",
+        });
 
-    //     const dlq = new Queue(this, "SampleEventSM-DLQ");
-
-    //     const role = new Role(this, "SampleEventSM-Role", {
-    //         assumedBy: new ServicePrincipal("events.amazonaws.com"),
-    //     });
-
-    //     rule.addTarget(
-    //         new targets.SfnStateMachine(props.stateMachine, {
-    //             input: RuleTargetInput,
-    //             deadLetterQueue: dlq,
-    //             role: role,
-    //         })
-    //     );
-    // };
+        const dlq = new Queue(this, "ItemTwoHandler-DLQ");
+        rule.addTarget(
+            new targets.LambdaFunction(handler, {
+                deadLetterQueue: dlq,
+            })
+        );
+    };
 }

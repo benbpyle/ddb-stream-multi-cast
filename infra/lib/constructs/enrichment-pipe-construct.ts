@@ -12,49 +12,42 @@ import { IFunction } from "aws-cdk-lib/aws-lambda";
 import { LogGroup } from "aws-cdk-lib/aws-logs";
 import { Key } from "aws-cdk-lib/aws-kms";
 import { Table } from "aws-cdk-lib/aws-dynamodb";
-import { RemovalPolicy } from "aws-cdk-lib";
+import { Stack } from "aws-cdk-lib";
 
 export class EnrichmentPipeConstruct extends Construct {
     constructor(scope: Construct, id: string, props: PipeProps) {
         super(scope, id);
 
-        const logGroup = new LogGroup(this, "LogGroup", {
-            logGroupName: "Patient-StreamChange-Pipe-Logs",
-            removalPolicy: RemovalPolicy.DESTROY,
-        });
-
+        const accountId = Stack.of(this).account;
+        const region = Stack.of(this).region;
+        const defaultBus = `arn:aws:events:${region}:${accountId}:event-bus/default`;
         // Create the role
         const pipeRole = this.pipeRole(
             scope,
             this.sourcePolicy(props.key, props.table),
-            this.targetPolicy(logGroup),
+            this.targetPolicy(defaultBus),
             this.enrichmentPolicy(props.enrichmentFunction)
         );
 
         const pipe = new CfnPipe(scope, "Pipe", {
-            name: "Patient-StreamChange-Pipe",
+            name: "Ddb-Stream-MultiCast-Pipe",
             roleArn: pipeRole.roleArn,
             // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
             source: props.table.tableStreamArn!,
             enrichment: props.enrichmentFunction.functionArn,
-            target: logGroup.logGroupArn,
+            target: defaultBus,
             sourceParameters: this.sourceParameters(),
-            targetParameters: this.targetParameters(logGroup),
+            targetParameters: this.targetParameters(defaultBus),
             enrichmentParameters: this.enrichmentParameters(),
         });
     }
 
-    targetPolicy = (logGroup: LogGroup): PolicyDocument => {
+    targetPolicy = (busArn: string): PolicyDocument => {
         return new PolicyDocument({
             statements: [
                 new PolicyStatement({
-                    resources: [logGroup.logGroupArn],
-                    actions: [
-                        "logs:CreateLogGroup",
-                        "logs:CreateLogStream",
-                        "logs:PutLogEvents",
-                        "logs:DescribeLogStreams",
-                    ],
+                    resources: [busArn],
+                    actions: ["events:PutEvents"],
                     effect: Effect.ALLOW,
                 }),
             ],
@@ -162,11 +155,19 @@ export class EnrichmentPipeConstruct extends Construct {
         that is suitable for the downstream event bus to read.  Transforms give
         the developer the ability to manipulate the output before it is written out
     */
-    targetParameters = (logGroup: LogGroup) => {
+    targetParameters = (busArn: string) => {
         return {
-            cloudWatchLogsParameters: {
-                logStreamName: logGroup.logGroupName,
+            eventBridgeEventBusParameters: {
+                detailType: "PatientChange",
+                source: "com.binaryheap.patient",
             },
+            inputTemplate: `{
+                    "meta": {
+                        "correlationId": <$.eventId>,
+                        "changeType": <$.eventType>
+                    },
+                    "event": <$.body>
+                }`,
         };
     };
 }

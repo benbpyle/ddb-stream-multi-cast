@@ -1,4 +1,4 @@
-module type-one-handler
+module type-two-handler
 
 go 1.20
 

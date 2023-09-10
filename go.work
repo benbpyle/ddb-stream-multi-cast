@@ -1,3 +1,7 @@
 go 1.20
 
 use ./src/enrichment
+
+use ./src/type-one-handler
+
+use ./src/type-two-handler

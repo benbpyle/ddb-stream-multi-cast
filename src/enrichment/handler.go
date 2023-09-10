@@ -18,7 +18,7 @@ var (
 	isLocal bool
 )
 
-func handler(ctx context.Context, e []events.DynamoDBEventRecord) (interface{}, error) {
+func handler(ctx context.Context, e []events.DynamoDBEventRecord) (*CustomEvent, error) {
 	log.WithFields(log.Fields{
 		"body": e,
 	}).Debug("Printing out the body")
@@ -27,21 +27,21 @@ func handler(ctx context.Context, e []events.DynamoDBEventRecord) (interface{}, 
 		return nil, fmt.Errorf("wrong number of entries supplied")
 	}
 
-	// fhirPatient, err := buildPatientEvent(&e[0])
+	patient, err := Convert(&e[0])
 
-	// if err != nil {
-	// 	log.WithFields(log.Fields{
-	// 		"err": err,
-	// 	}).Error("Something bad happened when building the Patient Payload")
+	if err != nil {
+		log.WithFields(log.Fields{
+			"err": err,
+		}).Error("Something bad happened when building the Patient Payload")
 
-	// 	return nil, err
-	// }
+		return nil, err
+	}
 
-	// log.WithFields(log.Fields{
-	// 	"fhirPatient": fhirPatient,
-	// }).Debug("Printing out the payload")
+	log.WithFields(log.Fields{
+		"patient": patient,
+	}).Debug("Printing out the payload")
 
-	return e[0], nil
+	return patient, nil
 
 }
 

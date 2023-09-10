@@ -4,6 +4,7 @@ import KeyConstruct from "./constructs/key-construct";
 import TableConstruct from "./constructs/table-construct";
 import FunctionConstruct from "./constructs/function-construct";
 import { EnrichmentPipeConstruct } from "./constructs/enrichment-pipe-construct";
+import { EventBridgeRulesConstruct } from "./constructs/event-bridge-rules-construct";
 
 export class MainStack extends Stack {
     constructor(scope: Construct, id: string, props: StackProps) {
@@ -29,6 +30,15 @@ export class MainStack extends Stack {
                 enrichmentFunction: functionConstruct.enrichmentFunction,
                 table: tableConstruct.table,
                 key: keyConstruct.key,
+            }
+        );
+
+        const rules = new EventBridgeRulesConstruct(
+            this,
+            "EventBridgeRulesConstruct",
+            {
+                itemOneHandler: functionConstruct.handlerOneFunction,
+                itemTwoHandler: functionConstruct.handlerTwoFunction,
             }
         );
     }
